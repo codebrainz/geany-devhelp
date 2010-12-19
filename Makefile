@@ -9,11 +9,11 @@ all: dhplug.so
 
 dhplug.so: dhplug.o
 	gcc $(CFLAGS) dhplug.o -o dhplug.so -shared \
-	`pkg-config --libs geany libdevhelp-2.0 webkit-1.0`
+	`pkg-config --libs geany libdevhelp-1.0 webkit-1.0`
 
 dhplug.o: dhplug.c
 	gcc $(CFLAGS) -c dhplug.c -fPIC \
-	`pkg-config --cflags geany libdevhelp-2.0 webkit-1.0`
+	`pkg-config --cflags geany libdevhelp-1.0 webkit-1.0`
 
 clean:
 	rm -f dhplug.o dhplug.so

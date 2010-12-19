@@ -22,7 +22,7 @@
 #include "geanyplugin.h"
 
 #include <devhelp/dh-base.h>
-#include <devhelp/dh-book-manager.h>
+//#include <devhelp/dh-book-manager.h>
 #include <devhelp/dh-book-tree.h>
 #include <devhelp/dh-search.h>
 #include <devhelp/dh-link.h>
@@ -168,8 +168,9 @@ DevhelpPlugin *devhelp_plugin_new(void)
     GtkWidget *contents_label, *search_label, *dh_sidebar_label;
     GtkWidget *code_label, *doc_label;
     GtkWidget *doc_notebook_parent, *vbox;
-    
-    DhBookManager *book_manager;
+	GNode *books;
+	GList *keywords;
+
     DevhelpPlugin *dhplug = g_malloc0(sizeof(DevhelpPlugin));
     
     if (dhplug == NULL) {
@@ -178,9 +179,10 @@ DevhelpPlugin *devhelp_plugin_new(void)
     }
     
     if (dhbase == NULL)
-        dhbase = dh_base_new();
-        
-    book_manager = dh_base_get_book_manager(dhbase);
+        dhbase = dh_base_new();    
+    
+	books = dh_base_get_book_tree(dhbase);
+	keywords = dh_base_get_keywords(dhbase);
     
     /* create main widgets */
     dhplug->sb_notebook = gtk_notebook_new();
@@ -204,7 +206,7 @@ DevhelpPlugin *devhelp_plugin_new(void)
     gtk_notebook_set_tab_pos(GTK_NOTEBOOK(dhplug->main_notebook), GTK_POS_BOTTOM);
 
     /* sidebar contents/book tree */
-    dhplug->book_tree = dh_book_tree_new(book_manager);
+	dhplug->book_tree = dh_book_tree_new(books);
     book_tree_sw = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(book_tree_sw),
         GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
@@ -213,7 +215,7 @@ DevhelpPlugin *devhelp_plugin_new(void)
     gtk_widget_show(dhplug->book_tree);
     
     /* sidebar search */
-    dhplug->search = dh_search_new(book_manager);
+	dhplug->search = dh_search_new(keywords);
     gtk_widget_show(dhplug->search);
     
     /* webview to display documentation */
