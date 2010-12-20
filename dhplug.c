@@ -34,6 +34,9 @@
 
 #include <webkit/webkitwebview.h>
 
+#include "plugincommon.h"
+#include "main_notebook.h"
+
 /* todo: make a better homepage as a separate file with images installed
  *	   into the proper directory. */
 #define WEBVIEW_HOMEPAGE "<html><body><h1 align=\"center\">Geany Devhelp " \
@@ -44,9 +47,6 @@
 			"Documentation for Tag' option to search for that tag in Devhelp." \
 			"</p></body></html>"
 
-GeanyPlugin	 	*geany_plugin;
-GeanyData	   		*geany_data;
-GeanyFunctions  	*geany_functions;
 
 PLUGIN_VERSION_CHECK(200)
 
@@ -78,6 +78,7 @@ typedef struct
 	gboolean last_sb_tab_id;		///   before toggling
 	gboolean tabs_toggled;		/// Tracks state of whether to toggle to
 									/// Devhelp or back to code
+	gboolean created_main_nb;		/// Track whether we created the main notebook
 
 } DevhelpPlugin;
 
@@ -214,11 +215,9 @@ void on_link_clicked(GObject *ignored, DhLink *link, gpointer user_data)
  * @return A newly allocated DevhelpPlugin struct or null on error.
  */
 DevhelpPlugin *devhelp_plugin_new(void)
-{
-	GtkWidget *doc_notebook_box, *book_tree_sw, *webview_sw;
-	GtkWidget *contents_label, *search_label, *dh_sidebar_label;
-	GtkWidget *code_label, *doc_label;
-	GtkWidget *doc_notebook_parent, *vbox;
+{	
+	GtkWidget *book_tree_sw, *webview_sw, *contents_label;
+	GtkWidget *search_label, *dh_sidebar_label, *doc_label;
 
 #ifdef HAVE_BOOK_MANAGER /* for newer api */
 	DhBookManager *book_manager;
@@ -248,10 +247,10 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	dhplug->search = dh_search_new(keywords);
 #endif
 	
-	/* create main widgets */
+	/* create/grab notebooks */
 	dhplug->sb_notebook = gtk_notebook_new();
-	dhplug->main_notebook = gtk_notebook_new();
 	dhplug->doc_notebook = geany->main_widgets->notebook;
+	dhplug->main_notebook = main_notebook_get();
 	
 	/* editor menu items */
 	dhplug->editor_menu_sep = gtk_separator_menu_item_new();
@@ -262,12 +261,10 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	contents_label = gtk_label_new(_("Contents"));
 	search_label = gtk_label_new(_("Search"));
 	dh_sidebar_label = gtk_label_new(_("Devhelp"));
-	code_label = gtk_label_new(_("Code"));
 	doc_label = gtk_label_new(_("Documentation"));	
 	
 	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook), 
 		GTK_POS_BOTTOM);
-	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(dhplug->main_notebook), GTK_POS_BOTTOM);
 
 	/* sidebar contents/book tree */
 	book_tree_sw = gtk_scrolled_window_new(NULL, NULL);
@@ -305,42 +302,12 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	dhplug->sb_notebook_tab = gtk_notebook_page_num(
 		GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook),
 		dhplug->sb_notebook);
-	
-	/* this is going to hold Geany's document notebook */
-	doc_notebook_box = gtk_vbox_new(FALSE, 0);
-	
-	/* put the box where Geany's documents notebook will live into the main
-	 * notebook */
-	gtk_notebook_append_page(GTK_NOTEBOOK(dhplug->main_notebook),
-		doc_notebook_box, code_label);
 
 	/* put the webview stuff into the main notebook */
 	gtk_notebook_append_page(GTK_NOTEBOOK(dhplug->main_notebook),
 		webview_sw, doc_label);
 	dhplug->webview_tab = gtk_notebook_page_num(
 							GTK_NOTEBOOK(dhplug->main_notebook), webview_sw);
-	
-	/* find a place to put Geany's documents notebook temporarily */
-	vbox = ui_lookup_widget(geany->main_widgets->window, "vbox1");
-	
-	/* this is where our new main notebook is going to go */
-	doc_notebook_parent = gtk_widget_get_parent(dhplug->doc_notebook);
-	
-	/* move the geany doc notebook widget into the main vbox temporarily */
-	/* see splitwindow.c */
-	gtk_widget_reparent(dhplug->doc_notebook, vbox);
-	
-	/* add the new main notebook to where Geany's documents notebook was */
-	gtk_container_add(GTK_CONTAINER(doc_notebook_parent), dhplug->main_notebook);
-
-	/* make sure it's all visible */
-	gtk_widget_show_all(dhplug->main_notebook);
-   
-	/* put Geany's doc notebook into it's new home */
-	gtk_widget_reparent(dhplug->doc_notebook, doc_notebook_box);
-	
-	/* set the code tab as current */
-	gtk_notebook_set_current_page(GTK_NOTEBOOK(dhplug->main_notebook), 0);
 	
 	/* add menu item to editor popup menu */
 	/* todo: make this an image menu item with devhelp icon */
@@ -397,26 +364,15 @@ DevhelpPlugin *devhelp_plugin_new(void)
  */
 void devhelp_plugin_destroy(DevhelpPlugin *dhplug)
 {	
-	GtkWidget *doc_notebook_parent, *vbox;
-
 	/* get rid of the devhelp tab in the sidebar */
 	gtk_widget_destroy(dhplug->sb_notebook);
 
-	/* this is the original place where Geany's doc notebook was and where it
-	 * needs to be put back to */
-	doc_notebook_parent = gtk_widget_get_parent(dhplug->main_notebook);
-	
-	/* a temporary place to put Geany's doc notebook so it stays visible */
-	vbox = ui_lookup_widget(geany->main_widgets->window, "vbox1");
-	
-	/* move Geany's doc notebook to the temp location */
-	gtk_widget_reparent(dhplug->doc_notebook, vbox);
-	
-	/* get rid of the main notebook and webview stuff */
-	gtk_widget_destroy(dhplug->main_notebook);
-	
-	/* put Geany's doc notebook back to its original location */
-	gtk_widget_reparent(dhplug->doc_notebook, doc_notebook_parent);
+	/* remove our tab from the main_notebook */
+	gtk_notebook_remove_page(GTK_NOTEBOOK(dhplug->main_notebook),
+		dhplug->webview_tab);
+		
+	/* get rid of the main notebook if no other plugins are using it */
+	main_notebook_destroy();
    
 	/* remove the editor menu items */
 	gtk_widget_destroy(dhplug->editor_menu_sep);
