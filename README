@@ -1,10 +1,1 @@
-No proper build system yet.  Requires Devhelp libraries.
 
-Compile:
-    make
-    
-Install:
-    make install PREFIX=/wherever (default /usr/local)
-
-Uninstall:
-    make uninstall PREFIX=/wherever
