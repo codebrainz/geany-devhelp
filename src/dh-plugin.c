@@ -19,9 +19,7 @@
  * MA 02110-1301, USA.
  */
 
-#include "geanyplugin.h"
-
-#include <gdk/gdkkeysyms.h> /* for keybindings */
+#include <geanyplugin.h>
 
 #include <devhelp/dh-base.h>
 #include <devhelp/dh-book-tree.h>
@@ -34,96 +32,67 @@
 
 #include <webkit/webkitwebview.h>
 
-#include "plugincommon.h"
-#include "main_notebook.h"
-
-/* todo: make a better homepage as a separate file with images installed
- *	   into the proper directory. */
-#define WEBVIEW_HOMEPAGE "<html><body><h1 align=\"center\">Geany Devhelp " \
-			"Plugin</h1><p align=\"center\">Use the Devhelp sidebar tab to " \
-			"navigate the documentation.</p><p align=\"center\"><span " \
-			"style=\"font-weight: bold;\">Tip:</span> Select a tag/symbol "\
-			"in your code, right click on the editor and choose the 'Search " \
-			"Documentation for Tag' option to search for that tag in Devhelp." \
-			"</p></body></html>"
-
-
-PLUGIN_VERSION_CHECK(200)
-
-PLUGIN_SET_INFO(
-	_("Devhelp Plugin"), 
-	_("Adds built-in Devhelp support."),
-	_("1.0"), _("Matthew Brush <mbrush@leftclick.ca>"))
+#include "plugin.h"
+#include "dh-plugin.h"
+#include "main-notebook.h"
 
 /* Devhelp base object */
 static DhBase *dhbase = NULL;  
 
-/* main plugin struct */
-typedef struct
-{
-	GtkWidget *book_tree;			/// "Contents" in the sidebar
-	GtkWidget *search;				/// "Search" in the sidebar
-	GtkWidget *sb_notebook;		/// Notebook that holds contents/search
-	gint sb_notebook_tab;			/// Index of tab where devhelp sidebar is
-	GtkWidget *webview;			/// Webkit that shows documentation
-	gint webview_tab;				/// Index of tab that contains the webview
-	GtkWidget *main_notebook;		/// Notebook that holds Geany doc notebook and
-									/// and webkit view
-	GtkWidget *doc_notebook;		/// Geany's document notebook  
-	GtkWidget *editor_menu_item;	/// Item in the editor's context menu 
-	GtkWidget *editor_menu_sep;	/// Separator item above menu item
-	gboolean *webview_active;		/// Tracks whether webview stuff is shown
-	
-	gboolean last_main_tab_id;		/// These track the last id of the tabs
-	gboolean last_sb_tab_id;		///   before toggling
-	gboolean tabs_toggled;		/// Tracks state of whether to toggle to
-									/// Devhelp or back to code
-	gboolean created_main_nb;		/// Track whether we created the main notebook
-
-} DevhelpPlugin;
-
-/* 
+/** 
+ * devhelp_clean_word:
+ * @param	str	String to clean
+ * 
  * Replaces non GEANY_WORDCHARS in str with spaces and then trims whitespace.
  * This function does not allocate a new string, it modifies str in place
  * and returns a pointer to str. 
  * TODO: make this only remove stuff from the start or end of string.
+ * 
+ * @return Pointer to (cleaned) @str.
  */
-gchar *clean_word(gchar *str)
+gchar *devhelp_clean_word(gchar *str)
 {
 	return g_strstrip(g_strcanon(str, GEANY_WORDCHARS, ' '));
 }
 
-/* Gets either the current selection or the word at the current selection. */
-gchar *get_current_tag(void)
+/**
+ * devhelp_get_current_tag:
+ * 
+ * Gets either the current selection or the word at the current selection.
+ * 
+ * @return Newly allocated string with current tag or NULL no tag.
+ */
+gchar *devhelp_get_current_tag(void)
 {
 	gint pos;
 	gchar *tag = NULL;
 	GeanyDocument *doc = document_get_current();
 	
 	if (sci_has_selection(doc->editor->sci))
-		return clean_word(sci_get_selection_contents(doc->editor->sci));
+		return devhelp_clean_word(sci_get_selection_contents(doc->editor->sci));
 	
 	pos = sci_get_current_position(doc->editor->sci);
-	
 	tag = editor_get_word_at_pos(doc->editor, pos, GEANY_WORDCHARS);
 	
-	if (tag == NULL) return NULL;
+	if (tag == NULL) 
+		return NULL;
 	
 	if (tag[0] == '\0') {
 		g_free(tag);
 		return NULL;
 	}
 	
-	return clean_word(tag);
+	return devhelp_clean_word(tag);
 }
 
 /**
- * Toggles devhelp related tabs to be current tabs or back to the
- * previously selected tabs.
- * 
+ * devhelp_activate_tabs:
  * @param	dhplug		The current DevhelpPlugin struct.
  * @param	contents	If TRUE then select the devhelp Contents tab
- * 						otherwise select the devhelp Search tab.
+ *						otherwise select the devhelp Search tab.
+ * 
+ * Toggles devhelp related tabs to be current tabs or back to the
+ * previously selected tabs.
  */ 
 void devhelp_activate_tabs(DevhelpPlugin *dhplug, gboolean contents)
 {
@@ -136,8 +105,8 @@ void devhelp_activate_tabs(DevhelpPlugin *dhplug, gboolean contents)
 										geany->main_widgets->sidebar_notebook));
 		dhplug->tabs_toggled = TRUE;
 		
-		gtk_notebook_set_current_page(
-			GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook), 
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(
+										geany->main_widgets->sidebar_notebook), 
 			dhplug->sb_notebook_tab);
 		gtk_notebook_set_current_page(
 			GTK_NOTEBOOK(dhplug->main_notebook), dhplug->webview_tab);
@@ -149,19 +118,19 @@ void devhelp_activate_tabs(DevhelpPlugin *dhplug, gboolean contents)
 	else
 	{
 		gtk_notebook_set_current_page(GTK_NOTEBOOK(dhplug->main_notebook), 
-			dhplug->last_main_tab_id);
-		gtk_notebook_set_current_page(
-			GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook),
-			dhplug->last_sb_tab_id);
+										dhplug->last_main_tab_id);
+		gtk_notebook_set_current_page(GTK_NOTEBOOK(
+										geany->main_widgets->sidebar_notebook),
+										dhplug->last_sb_tab_id);
 		dhplug->tabs_toggled = FALSE;
 	}
 }
 
 /* Called when the editor menu item is selected */
-void on_search_help_activate(GtkMenuItem *menuitem, gpointer user_data)
+static void on_search_help_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
 	DevhelpPlugin *dhplug = user_data;
-	gchar *current_tag = get_current_tag();
+	gchar *current_tag = devhelp_get_current_tag();
 	
 	if (current_tag == NULL)
 		return;
@@ -178,44 +147,57 @@ void on_search_help_activate(GtkMenuItem *menuitem, gpointer user_data)
  * Called when the editor context menu is shown so that the devhelp
  * search item can be disabled if there isn't a selected tag.
  */
-void on_editor_menu_popup(GtkWidget *widget, gpointer user_data)
+static void on_editor_menu_popup(GtkWidget *widget, gpointer user_data)
 {
 	gchar *curword = NULL;
+	gchar *new_label = NULL;
 	DevhelpPlugin *dhplug = user_data;
 	
-	curword = get_current_tag();
+	curword = devhelp_get_current_tag();
 	if (curword == NULL)
 		gtk_widget_set_sensitive(dhplug->editor_menu_item, FALSE);
-	else
+	else {
 		gtk_widget_set_sensitive(dhplug->editor_menu_item, TRUE);
+		new_label = g_strdup_printf("Search Devhelp for '%s'", curword);
+		gtk_menu_item_set_label(GTK_MENU_ITEM(dhplug->editor_menu_item),
+								new_label);
+		g_free(new_label);
+	}
 	
 	g_free(curword);	
 }
 
 /**
- * Called when a link in either the contents or search areas on the sidebar 
- * have a link clicked on, meaning to load that file into the webview.
+ * on_link_clicked:
  * @param ignored		Not used
  * @param link	  		The devhelp link object describing what was clicked.
  * @param user_data 	The current DevhelpPlugin struct.
+ * 
+ * Called when a link in either the contents or search areas on the sidebar 
+ * have a link clicked on, meaning to load that file into the webview.
  */
-void on_link_clicked(GObject *ignored, DhLink *link, gpointer user_data)
+static void on_link_clicked(GObject *ignored, DhLink *link, gpointer user_data)
 {
 	gchar *uri = dh_link_get_uri(link);
 	DevhelpPlugin *plug = user_data;
 	webkit_web_view_open(WEBKIT_WEB_VIEW(plug->webview), uri);
 	g_free(uri);
-	gtk_notebook_set_current_page(GTK_NOTEBOOK(plug->main_notebook), plug->webview_tab);
+	gtk_notebook_set_current_page(GTK_NOTEBOOK(plug->main_notebook), 
+									plug->webview_tab);
 }
 
 /**
+ * devhelp_plugin_new:
+ * 
  * Creates a new DevhelpPlugin.  The returned structure is allocated dyamically
  * and must be freed with the devhelp_plugin_destroy() function.  This function
  * gets called from Geany's plugin_init() function.
+ * 
  * @return A newly allocated DevhelpPlugin struct or null on error.
  */
 DevhelpPlugin *devhelp_plugin_new(void)
 {	
+	gchar *homepage_uri;
 	GtkWidget *book_tree_sw, *webview_sw, *contents_label;
 	GtkWidget *search_label, *dh_sidebar_label, *doc_label;
 
@@ -263,8 +245,11 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	dh_sidebar_label = gtk_label_new(_("Devhelp"));
 	doc_label = gtk_label_new(_("Documentation"));	
 	
+	/* make this a pref */
+	/*
 	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook), 
 		GTK_POS_BOTTOM);
+	*/
 
 	/* sidebar contents/book tree */
 	book_tree_sw = gtk_scrolled_window_new(NULL, NULL);
@@ -282,7 +267,7 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	webview_sw = gtk_scrolled_window_new(NULL, NULL);
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(webview_sw),
 		GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-	gtk_container_set_border_width(GTK_CONTAINER(webview_sw), 6);
+	/*gtk_container_set_border_width(GTK_CONTAINER(webview_sw), 6);*/
 	gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(webview_sw), 
 		GTK_SHADOW_ETCHED_IN);
 	gtk_container_add(GTK_CONTAINER(webview_sw), dhplug->webview);
@@ -351,110 +336,39 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	dhplug->tabs_toggled = FALSE;
 	
 	/* load the default homepage for the webview */
-	webkit_web_view_load_string(WEBKIT_WEB_VIEW(dhplug->webview),
-		WEBVIEW_HOMEPAGE,"text/html", NULL, NULL);
+	homepage_uri = g_filename_to_uri(DHPLUG_WEBVIEW_HOME_FILE, NULL, NULL);
+	if (homepage_uri) {
+		webkit_web_view_load_uri(WEBKIT_WEB_VIEW(dhplug->webview), 
+								 homepage_uri);
+		g_free(homepage_uri);
+	}
 	
 	return dhplug;
 }
 
 /**
+ * devhelp_plugin_destroy:
+ * @param dhplug	The DevhelpPlugin to destroy/free.
+ * 
  * Destroys the associated widgets and frees memory for a DevhelpPlugin.  This
  * should be called from Geany's plugin_cleanup() function.
- * @param dhplug	The DevhelpPlugin to destroy/free.
  */
 void devhelp_plugin_destroy(DevhelpPlugin *dhplug)
 {	
-	/* get rid of the devhelp tab in the sidebar */
 	gtk_widget_destroy(dhplug->sb_notebook);
-
-	/* remove our tab from the main_notebook */
 	gtk_notebook_remove_page(GTK_NOTEBOOK(dhplug->main_notebook),
-		dhplug->webview_tab);
-		
-	/* get rid of the main notebook if no other plugins are using it */
+								dhplug->webview_tab);
+
 	main_notebook_destroy();
    
-	/* remove the editor menu items */
 	gtk_widget_destroy(dhplug->editor_menu_sep);
 	gtk_widget_destroy(dhplug->editor_menu_item);
    
-	/* don't unref it because it complains about only being init'd once */
+	/* make this a pref */
 	/*
-	if (dhbase) {
-		g_object_unref(G_OBJECT(dhbase));
-		dhbase = NULL;
-	}
+	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(
+								geany->main_widgets->sidebar_notebook), 
+								GTK_POS_TOP);
 	*/
-	
-	// Move geany's sidebar tabs back to the top
-	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook), 
-		GTK_POS_TOP);
-	
 	g_free(dhplug);
-}
-
-//------------------------------------------------------------------------------
-
-/* keybindings */
-enum
-{
-	KB_DEVHELP_TOGGLE_CONTENTS,
-	KB_DEVHELP_TOGGLE_SEARCH,
-	KB_DEVHELP_SEARCH_SYMBOL,
-	KB_COUNT
-};
-
-static DevhelpPlugin *dev_help_plugin = NULL;
-
-/* Called when a keybinding is activated */
-static void kb_activate(guint key_id)
-{
-	switch (key_id)
-	{
-		case KB_DEVHELP_TOGGLE_CONTENTS:
-			devhelp_activate_tabs(dev_help_plugin, TRUE);
-			break;
-		case KB_DEVHELP_TOGGLE_SEARCH:
-			devhelp_activate_tabs(dev_help_plugin, FALSE);
-			break;
-		case KB_DEVHELP_SEARCH_SYMBOL:
-		{
-			gchar *current_tag = get_current_tag();
-			if (current_tag == NULL) return;
-			dh_search_set_search_string(
-				DH_SEARCH(dev_help_plugin->search), current_tag, NULL);
-			devhelp_activate_tabs(dev_help_plugin, FALSE);
-			g_free(current_tag);
-			break;
-		}
-	}
-}
-
-void plugin_init(GeanyData *data)
-{
-	GeanyKeyGroup *key_group;
-	
-	/* stop crashing when the plugin is re-loaded */
-	plugin_module_make_resident(geany_plugin);
-
-	dev_help_plugin = devhelp_plugin_new();
-
-	/* setup keybindings */
-	key_group = plugin_set_key_group(geany_plugin, "devhelp", KB_COUNT, NULL);
-	
-	keybindings_set_item(key_group, KB_DEVHELP_TOGGLE_CONTENTS, kb_activate,
-		0, 0, "devhelp_toggle_contents", _("Toggle Devhelp (Contents Tab)"), NULL);
-	keybindings_set_item(key_group, KB_DEVHELP_TOGGLE_SEARCH, kb_activate,
-		0, 0, "devhelp_toggle_search", _("Toggle Devhelp (Search Tab)"), NULL);
-	keybindings_set_item(key_group, KB_DEVHELP_SEARCH_SYMBOL, kb_activate,
-		0, 0, "devhelp_search_symbol", _("Search for Current Symbol/Tag"), NULL);
-	
-}
-
-void plugin_cleanup(void)
-{
-	
-	if (dev_help_plugin != NULL)
-		devhelp_plugin_destroy(dev_help_plugin);
-
 }

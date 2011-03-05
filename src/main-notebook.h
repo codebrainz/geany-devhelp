@@ -8,7 +8,7 @@
  * and it will be destroyed and the UI will be put back to normal only 
  * if no other plugins are still using it.
  * 
- * See main_plugin.c for documentation for these functions
+ * See main-notebook.c for documentation for these functions
  */
 
 gboolean main_notebook_exists(void);

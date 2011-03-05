@@ -1,6 +1,6 @@
 #include "geanyplugin.h"
-#include "plugincommon.h"
-#include "main_notebook.h"
+#include "plugin.h"
+#include "main-notebook.h"
 
 static gboolean holds_main_notebook(GtkWidget *widget);
 static GtkWidget *create_main_notebook(void);
@@ -30,11 +30,9 @@ gboolean main_notebook_needs_destroying(void)
 	if (main_notebook_exists())
 	{
 		GtkWidget *nb = main_notebook_get();
-		if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(nb)) > 1)
-			return FALSE; /* don't destroy, other plugins using nb */
-		return TRUE; /* only code page left, ok to destroy */
+		return (gtk_notebook_get_n_pages(GTK_NOTEBOOK(nb)) > 1) ? FALSE : TRUE;
 	}
-	return FALSE; /* nb not exists, so don't tell caller to destroy it */	
+	return FALSE;
 }
 
 /**
@@ -44,7 +42,6 @@ gboolean main_notebook_needs_destroying(void)
  */
 void main_notebook_destroy(void)
 {	
-	/* skip destroying the main_notebook if other plugins are using it */
 	if (!main_notebook_needs_destroying())
 		return;
 		
@@ -53,20 +50,11 @@ void main_notebook_destroy(void)
 	main_notebook = ui_lookup_widget(geany->main_widgets->window, 
 									"main_notebook");
 
-	/* this is the original place where Geany's doc notebook was and where it
-	 * needs to be put back to */
 	doc_nb_parent = gtk_widget_get_parent(main_notebook);
 	
-	/* a temporary place to put Geany's doc notebook so it stays visible */
 	vbox = ui_lookup_widget(geany->main_widgets->window, "vbox1");
-	
-	/* move Geany's doc notebook to the temp location */
 	gtk_widget_reparent(geany->main_widgets->notebook, vbox);
-	
-	/* get rid of the main notebook and webview stuff */
 	gtk_widget_destroy(main_notebook);
-	
-	/* put Geany's doc notebook back to its original location */
 	gtk_widget_reparent(geany->main_widgets->notebook, doc_nb_parent);
 }
 
@@ -120,47 +108,24 @@ static gboolean holds_main_notebook(GtkWidget *widget)
 static GtkWidget *create_main_notebook(void)
 {
 	GtkWidget *main_notebook, *doc_nb_box, *doc_nb_parent, *code_label, *vbox;
-	
-	/* bail out if the main notebook exists already */
+
 	if (main_notebook_exists())
 		return NULL;
 	
 	code_label = gtk_label_new(_("Code"));
-	
-	/* create the new main_notebook */
 	main_notebook = gtk_notebook_new();
-	gtk_widget_set_name(main_notebook, "main_notebook");
-	
-	/* this is going to hold Geany's document notebook */
 	doc_nb_box = gtk_vbox_new(FALSE, 0);
-	
-	/* put the box where Geany's documents notebook will live into the main
-	 * notebook */
-	gtk_notebook_append_page(GTK_NOTEBOOK(main_notebook), doc_nb_box, code_label);
-	
-	/* find a place to put Geany's documents notebook temporarily */
 	vbox = ui_lookup_widget(geany->main_widgets->window, "vbox1");
-	
-	/* this is where our new main notebook is going to go */
 	doc_nb_parent = gtk_widget_get_parent(geany->main_widgets->notebook);
 	
-	/* move the geany doc notebook widget into the main vbox temporarily */
-	/* see splitwindow.c */
+	gtk_widget_set_name(main_notebook, "main_notebook");
+	gtk_notebook_append_page(GTK_NOTEBOOK(main_notebook), doc_nb_box, code_label);
 	gtk_widget_reparent(geany->main_widgets->notebook, vbox);
-	
-	/* add the new main notebook to where Geany's documents notebook was */
 	gtk_container_add(GTK_CONTAINER(doc_nb_parent), main_notebook);
-
-	/* make sure it's all visible */
+	//gtk_paned_pack2(GTK_PANED(doc_nb_parent), main_notebook, TRUE, TRUE);
 	gtk_widget_show_all(main_notebook);
-   
-	/* put Geany's doc notebook into it's new home */
 	gtk_widget_reparent(geany->main_widgets->notebook, doc_nb_box);
-	
-	/* set the code tab as current */
 	gtk_notebook_set_current_page(GTK_NOTEBOOK(main_notebook), 0);
-
-	/* move the tabs to the bottom */
 	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(main_notebook), GTK_POS_BOTTOM);
 
 	/* from ui_utils: ui_hookup_widget() */
