@@ -1,5 +1,5 @@
 /*
- * dhplug.c
+ * dhplug.c - Part of the Geany Devhelp Plugin
  * 
  * Copyright 2010 Matthew Brush <mbrush@leftclick.ca>
  * 
