@@ -298,8 +298,6 @@ void plugin_cleanup(void)
 {	
 	plugin_store_preferences();
 	
-	//if (dev_help_plugin != NULL)
-	//	devhelp_plugin_destroy(dev_help_plugin);
 	g_object_unref(dev_help_plugin);
 	
 	g_free(default_config);
