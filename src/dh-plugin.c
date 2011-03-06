@@ -126,6 +126,16 @@ void devhelp_activate_tabs(DevhelpPlugin *dhplug, gboolean contents)
 	}
 }
 
+void devhelp_plugin_sidebar_tabs_bottom(DevhelpPlugin *dhplug, gboolean bottom)
+{
+	if (bottom)
+		gtk_notebook_set_tab_pos(GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook), 
+								 GTK_POS_BOTTOM);
+	else
+		gtk_notebook_set_tab_pos(GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook),
+								 dhplug->orig_sb_tab_pos);
+}
+
 /* Called when the editor menu item is selected */
 static void on_search_help_activate(GtkMenuItem *menuitem, gpointer user_data)
 {
@@ -195,7 +205,7 @@ static void on_link_clicked(GObject *ignored, DhLink *link, gpointer user_data)
  * 
  * @return A newly allocated DevhelpPlugin struct or null on error.
  */
-DevhelpPlugin *devhelp_plugin_new(void)
+DevhelpPlugin *devhelp_plugin_new(gboolean sb_tabs_bottom, gboolean show_in_msgwin)
 {	
 	gchar *homepage_uri;
 	GtkWidget *book_tree_sw, *webview_sw, *contents_label;
@@ -228,11 +238,17 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	dhplug->book_tree = dh_book_tree_new(books);
 	dhplug->search = dh_search_new(keywords);
 #endif
+
+	dhplug->in_message_window = show_in_msgwin;
 	
 	/* create/grab notebooks */
 	dhplug->sb_notebook = gtk_notebook_new();
 	dhplug->doc_notebook = geany->main_widgets->notebook;
-	dhplug->main_notebook = main_notebook_get();
+	
+	if (dhplug->in_message_window)
+		dhplug->main_notebook = geany->main_widgets->message_window_notebook;
+	else
+		dhplug->main_notebook = main_notebook_get();
 	
 	/* editor menu items */
 	dhplug->editor_menu_sep = gtk_separator_menu_item_new();
@@ -245,11 +261,9 @@ DevhelpPlugin *devhelp_plugin_new(void)
 	dh_sidebar_label = gtk_label_new(_("Devhelp"));
 	doc_label = gtk_label_new(_("Documentation"));	
 	
-	/* make this a pref */
-	/*
-	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(geany->main_widgets->sidebar_notebook), 
-		GTK_POS_BOTTOM);
-	*/
+	dhplug->orig_sb_tab_pos = gtk_notebook_get_tab_pos(GTK_NOTEBOOK(
+									geany->main_widgets->sidebar_notebook));
+	devhelp_plugin_sidebar_tabs_bottom(dhplug, sb_tabs_bottom);
 
 	/* sidebar contents/book tree */
 	book_tree_sw = gtk_scrolled_window_new(NULL, NULL);
@@ -356,19 +370,19 @@ DevhelpPlugin *devhelp_plugin_new(void)
 void devhelp_plugin_destroy(DevhelpPlugin *dhplug)
 {	
 	gtk_widget_destroy(dhplug->sb_notebook);
+	
 	gtk_notebook_remove_page(GTK_NOTEBOOK(dhplug->main_notebook),
 								dhplug->webview_tab);
-
-	main_notebook_destroy();
+								
+	if (!dhplug->in_message_window)
+		main_notebook_destroy();
    
 	gtk_widget_destroy(dhplug->editor_menu_sep);
 	gtk_widget_destroy(dhplug->editor_menu_item);
    
-	/* make this a pref */
-	/*
 	gtk_notebook_set_tab_pos(GTK_NOTEBOOK(
 								geany->main_widgets->sidebar_notebook), 
-								GTK_POS_TOP);
-	*/
+								dhplug->orig_sb_tab_pos);
+
 	g_free(dhplug);
 }

@@ -22,6 +22,8 @@
 #ifndef DH_PLUGIN_H
 #define DH_PLUGIN_H
 
+#include <gtk/gtk.h>
+
 #ifndef DHPLUG_DATA_DIR
 #define DHPLUG_DATA_DIR "/usr/local/share/geany-devhelp"
 #endif
@@ -49,13 +51,18 @@ typedef struct
 	gboolean tabs_toggled;			/// Tracks state of whether to toggle to
 									/// Devhelp or back to code
 	gboolean created_main_nb;		/// Track whether we created the main notebook
+	
+	GtkPositionType orig_sb_tab_pos;
+	gboolean sidebar_tab_bottom;
+	gboolean in_message_window;
 
 } DevhelpPlugin;
 
 gchar *devhelp_clean_word(gchar *str);
 gchar *devhelp_get_current_tag(void);
 void devhelp_activate_tabs(DevhelpPlugin *dhplug, gboolean contents);
-DevhelpPlugin *devhelp_plugin_new(void);
+DevhelpPlugin *devhelp_plugin_new(gboolean sb_tabs_bottom, gboolean show_in_msgwin);
 void devhelp_plugin_destroy(DevhelpPlugin *dhplug);
+void devhelp_plugin_sidebar_tabs_bottom(DevhelpPlugin *dhplug, gboolean bottom);
 
 #endif
