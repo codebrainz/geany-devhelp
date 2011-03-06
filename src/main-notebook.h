@@ -22,6 +22,8 @@
 #ifndef MAIN_NOTEBOOK_H
 #define MAIN_NOTEBOOK_H
 
+#include <gtk/gtk.h>
+
 /* 
  * When you need the main_notebook, you call main_notebook_get() which 
  * will get an existing main_notebook or create one if it doesn't exist.  

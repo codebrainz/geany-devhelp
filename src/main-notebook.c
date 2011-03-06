@@ -19,6 +19,7 @@
  * MA 02110-1301, USA.
  */
  
+#include <gtk/gtk.h>
 #include "geanyplugin.h"
 #include "plugin.h"
 #include "main-notebook.h"

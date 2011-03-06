@@ -22,17 +22,18 @@
 #ifndef PLUGIN_COMMON_H
 #define PLUGIN_COMMON_H
 
+#include <gtk/gtk.h>
 #include <geanyplugin.h>
 #include "dh-plugin.h"
 
-GeanyPlugin	 	*geany_plugin;
-GeanyData	   	*geany_data;
-GeanyFunctions  *geany_functions;
+extern GeanyPlugin	 	*geany_plugin;
+extern GeanyData	   	*geany_data;
+extern GeanyFunctions 	*geany_functions;
 
 extern DevhelpPlugin *dev_help_plugin;
 
-gint load_preferences();
-gint store_preferences();
-gboolean config_init();
+gint plugin_load_preferences();
+gint plugin_store_preferences();
+gboolean plugin_config_init();
 
 #endif

@@ -19,10 +19,13 @@
  * MA 02110-1301, USA.
  */
  
-#include <geanyplugin.h>
-#include <gdk/gdkkeysyms.h> /* for keybindings */
-#include <devhelp/dh-search.h>
 #include <sys/stat.h> /* for g_mkdir_with_parents, is it portable? */
+
+#include <gtk/gtk.h>
+#include <gdk/gdkkeysyms.h> /* for keybindings */
+#include <geanyplugin.h>
+#include <devhelp/dh-search.h>
+
 #include "plugin.h"
 #include "dh-plugin.h"
 
@@ -32,7 +35,11 @@ PLUGIN_SET_INFO(
 	_("Devhelp Plugin"), 
 	_("Adds built-in Devhelp support."),
 	"1.0", "Matthew Brush <mbrush@leftclick.ca>")
-	
+
+GeanyPlugin	 	*geany_plugin;
+GeanyData	   	*geany_data;
+GeanyFunctions 	*geany_functions;
+
 DevhelpPlugin *dev_help_plugin = NULL;
 
 static gchar *default_config = NULL;
@@ -104,7 +111,7 @@ configure_dialog_response(GtkDialog *dialog, gint response_id, gpointer user_dat
 	}
 }
 
-gint load_preferences()
+gint plugin_load_preferences()
 {
 	GError *error;
 	GKeyFile *kf;
@@ -153,7 +160,7 @@ gint load_preferences()
 	return rcode;	
 }
 
-gint store_preferences()
+gint plugin_store_preferences()
 {
 	gchar *config_text;
 	GError *error;
@@ -185,7 +192,7 @@ gint store_preferences()
 	return rcode;	
 }
 
-gboolean config_init()
+gboolean plugin_config_init()
 {
 	gchar *user_config_dir;
 	gboolean rcode = TRUE;
