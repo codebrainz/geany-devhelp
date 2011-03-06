@@ -213,6 +213,7 @@ gboolean plugin_config_init()
 							   "devhelp.conf",
 							   NULL);
 	
+	/* TODO: is this portable? */
 	if (g_mkdir_with_parents(user_config_dir, S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
 		g_warning(_("Unable to create config dir at '%s'"), user_config_dir);
 		g_free(user_config_dir);
